@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Glucoid - settings schema.
+  Copyright (C) 2026  Reijo Kinnunen
+  SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <kcfgfile name=""/>
+    <group name="General">
+        <entry name="url" type="String">
+            <label>Nightscout-compatible API address</label>
+            <default></default>
+        </entry>
+        <entry name="authMode" type="String">
+            <label>Authentication method: token, apisecret or none</label>
+            <default>token</default>
+        </entry>
+        <entry name="token" type="String">
+            <label>Access token or API secret</label>
+            <default></default>
+        </entry>
+        <entry name="interval" type="Int">
+            <label>Poll interval in seconds</label>
+            <default>60</default>
+        </entry>
+        <entry name="high" type="Double">
+            <label>High limit in the display unit (empty or 0 = not used)</label>
+        </entry>
+        <entry name="low" type="Double">
+            <label>Low limit in the display unit (empty or 0 = not used)</label>
+        </entry>
+        <entry name="targetTop" type="Double">
+            <label>Target range top (empty or 0 = not used)</label>
+        </entry>
+        <entry name="targetBottom" type="Double">
+            <label>Target range bottom (empty or 0 = not used)</label>
+        </entry>
+        <entry name="ageLimit" type="Int">
+            <label>Mark the reading stale after this many minutes (0 = never)</label>
+            <default>20</default>
+        </entry>
+        <entry name="unitsInMmol" type="Bool">
+            <label>Show mmol/l (otherwise mg/dl)</label>
+            <default>true</default>
+        </entry>
+    </group>
+</kcfg>
