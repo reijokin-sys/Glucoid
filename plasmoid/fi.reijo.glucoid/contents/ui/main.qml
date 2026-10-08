@@ -5,9 +5,11 @@
  *
  * Shows the latest sensor glucose reading from a Nightscout-compatible API
  * (Nightscout itself, a Nightscout proxy, or e.g. the Juggluco web server)
- * as a small panel indicator: value + trend arrow. Clicking it opens a card
- * with the delta and the age of the reading; the gear in the card opens
- * these settings. Everything is configured in the widget's own settings.
+ * as a small panel card: the value, its trend arrow, the delta and the age of
+ * the reading, all on one line inside a rounded badge. Clicking it opens the
+ * full card; the gear in the card (and the widget's own right-click menu)
+ * opens these settings. Everything is configured in the widget's own
+ * settings.
  *
  * Request chains against the public Nightscout API:
  *   token      JWT (/api/v2/authorization/request/<token>) ->
@@ -18,10 +20,11 @@
  *   none       /api/v1/entries.json -> /api/v2/entries/sgv ->
  *              /api/v3/entries
  *
- * The trend arrow follows the displayed delta (in mmol/l: 0.0 flat,
- * 0.1 diagonal, 0.2 straight, 0.3+ double; in mg/dl: 0, 1-2, 3-4, 5+).
- * When there is only a single sample, the direction field reported by the
- * API itself is used.
+ * There are three trend arrows (user's decision 2026-10-08): flat, diagonal
+ * and straight up/down, for deltas of 0.0, up to 0.2 and more than 0.2 in
+ * mmol/l (in mg/dl: 0, 1-4, 5+). The API's own direction is used only when
+ * there is a single sample and no delta, and it is folded into the same three
+ * arrows.
  */
 
 import QtQuick
@@ -251,8 +254,22 @@ PlasmoidItem {
         return url + (url.indexOf("?") >= 0 ? "&" : "?") + query;
     }
 
+    // The API's own direction is the fallback when there is only one sample
+    // (and so no delta to compare). It is folded into the same three arrows,
+    // so the panel never shows a fourth kind of arrow.
     function arrowFor(direction) {
-        return root.trendGlyphs[direction] || "-";
+        switch (direction) {
+        case "Flat": return "\u2192";
+        case "FortyFiveUp": return "\u2197";
+        case "FortyFiveDown": return "\u2198";
+        case "SingleUp":
+        case "DoubleUp":
+        case "TripleUp": return "\u2191";
+        case "SingleDown":
+        case "DoubleDown":
+        case "TripleDown": return "\u2193";
+        default: return root.trendGlyphs[direction] || "-";
+        }
     }
 
     // Age of the reading as words: "now", "1 min ago", "7 min ago".
@@ -266,17 +283,16 @@ PlasmoidItem {
         return root.ageMinutes === 0 ? root.colorOk : root.colorText;
     }
 
-    // The arrow is derived from the displayed delta so the number and the
-    // arrow always agree ("+0.1" -> slightly diagonal up).
+    // Three arrows only (user's decision 2026-10-08): flat, diagonal and
+    // straight up/down - for 0.0, up to 0.2 and more than 0.2 (mmol/l).
+    // In mg/dl the same bands are 0, 1-4 and 5+.
     function arrowFromDelta(delta) {
         const a = Math.abs(delta);
-        const diagonal = root.inMmol() ? 0.05 : 1;    // from here: a direction
-        const straight = root.inMmol() ? 0.15 : 3;    // from here: straight arrow
-        const doubled = root.inMmol() ? 0.25 : 5;     // from here: doubled arrow
+        const diagonal = root.inMmol() ? 0.05 : 0.5;  // from here: a direction
+        const straight = root.inMmol() ? 0.2 : 4.5;   // from here: straight arrow
         if (a < diagonal) return "\u2192";
-        if (a < straight) return delta > 0 ? "\u2197" : "\u2198";
-        if (a < doubled) return delta > 0 ? "\u2191" : "\u2193";
-        return delta > 0 ? "\u21C8" : "\u21CA";
+        if (a <= straight) return delta > 0 ? "\u2197" : "\u2198";
+        return delta > 0 ? "\u2191" : "\u2193";
     }
 
     function parse(text) {
@@ -476,14 +492,18 @@ PlasmoidItem {
     readonly property int panelValueSize: 24
     readonly property int panelAgeSize: 14
 
+    /// The delta is worth showing only when there is one: "?.?" is the
+    /// placeholder for "no reading yet" and belongs in the card, not in the
+    /// panel.
+    readonly property bool deltaKnown: root.deltaText.indexOf("?") < 0
+
     compactRepresentation: Item {
         id: compactRoot
 
         // Note: this panel gives the applet a small fixed slot regardless of
-        // the size hints below, so the value and arrow are drawn centred.
-        // The card (fullRepresentation) shows everything else.
-        implicitWidth: badge.implicitWidth + 12
-        implicitHeight: Math.max(badge.implicitHeight + 4, 32)
+        // the size hints below, so the badge is drawn centred.
+        implicitWidth: badge.width + 12
+        implicitHeight: Math.max(badge.height + 4, 32)
         Layout.preferredWidth: implicitWidth
         Layout.preferredHeight: implicitHeight
         Layout.minimumWidth: implicitWidth
@@ -494,9 +514,10 @@ PlasmoidItem {
             onClicked: root.expanded = !root.expanded
         }
 
-        // Two blocks: the reading with its arrow, and the age next to it.
-        // The age gets a narrow column so "1 min ago" wraps onto two lines
-        // ("1 min" / "ago") and the badge stays compact.
+        // The panel badge keeps its original look (user's decision
+        // 2026-10-08): no background, no border, no freshness bar - just the
+        // words on the panel. What is new is the delta, which sits next to the
+        // reading.
         RowLayout {
             id: badge
             anchors.centerIn: parent
@@ -510,6 +531,17 @@ PlasmoidItem {
                 font.weight: Font.Normal
                 text: "<span style=\"color:" + root.stateColor + "\">" + root.valueText + "</span>"
                       + "&nbsp;<span style=\"color:" + root.colorText + "\">" + root.trendText + "</span>"
+            }
+
+            // The delta, in the same size as the age so the row stays one
+            // line tall (the panel gives the applet its own row height).
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                visible: root.configured && root.deltaKnown
+                text: root.deltaText
+                color: root.colorMuted
+                font.pixelSize: root.panelAgeSize
+                font.weight: Font.Normal
             }
 
             Text {

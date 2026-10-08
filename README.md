@@ -49,13 +49,13 @@ is about 105 KB.
 With the KDE Plasma 6 tools:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -i glucoid-1.1.0.plasmoid
+kpackagetool6 -t Plasma/Applet -i glucoid-1.2.0.plasmoid
 ```
 
 If an older version is already installed, upgrade it instead:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -u glucoid-1.1.0.plasmoid
+kpackagetool6 -t Plasma/Applet -u glucoid-1.2.0.plasmoid
 ```
 
 or right-click the panel and choose *Enter Edit Mode -> Add Widgets... -> Get
@@ -88,7 +88,7 @@ The widget never writes to the API.
 ## Build the package
 
 ```sh
-tools/make-package.sh          # -> dist/glucoid-1.1.0.plasmoid
+tools/make-package.sh          # -> dist/glucoid-1.2.0.plasmoid
 ```
 
 The build is byte-for-byte reproducible: the script copies the files with

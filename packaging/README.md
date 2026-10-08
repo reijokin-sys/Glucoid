@@ -19,13 +19,13 @@ desktop panel.
 With the KDE Plasma 6 tools:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -i glucoid-1.1.0.plasmoid
+kpackagetool6 -t Plasma/Applet -i glucoid-1.2.0.plasmoid
 ```
 
 If an older version is already installed, upgrade it instead:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -u glucoid-1.1.0.plasmoid
+kpackagetool6 -t Plasma/Applet -u glucoid-1.2.0.plasmoid
 ```
 
 or right-click the panel, choose *Enter Edit Mode -> Add Widgets... -> Get New

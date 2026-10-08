@@ -6,7 +6,7 @@
         "Name": "Glucoid",
         "Description": "Blood glucose from a Nightscout-compatible API, shown in the Plasma panel",
         "Icon": "utilities-system-monitor",
-        "Version": "1.1.0",
+        "Version": "1.2.0",
         "License": "GPL-3.0-or-later",
         "Copyright": "(C) 2026 Reijo Kinnunen",
         "Category": "System Information",
