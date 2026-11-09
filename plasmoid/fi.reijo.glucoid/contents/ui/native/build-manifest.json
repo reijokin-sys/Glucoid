@@ -1,0 +1,17 @@
+{
+  "version": "1.3.1",
+  "architecture": "x86_64",
+  "qt_version": "6.10.2",
+  "libcurl_version": "8.18.0",
+  "library_sha256": "024651a632bb16766d531822982ded468c6bbd5d1748e430fda1b97fff92fa65",
+  "sources": {
+    "CMakeLists.txt": "00457827a9b2a12e0f926c13f385e3f59cdaf09f42d185c759aaf8031fac3103",
+    "native/plugin.cpp": "4f1c979861ca86b5d5b212cefa8d8026553e6e32a748d1676a041a3d09c6c7f1",
+    "native/secureclient.cpp": "dc4ebe4bee8263c2c2d6fb47838c290cc934cc09bfa3208a19887ac435944940",
+    "native/wireguard.cpp": "6ef961ca8f1a00eaede886a63bb0bd87ad8bf5e51f258a40010e151bceecdec6",
+    "native/secureclient.h": "e9a503cf2e3d21a0b55763bde9db9eac5eca54457a55b8b3c946e3d7c535cf03",
+    "native/wireguard.h": "ad3a3f8618a93d67c307b4a2fb7a1b9c195d9daff4501df8e44e08013f53d19b",
+    "native/stage.py": "e24cec3a65bea62d65b4d17785216d80794a5108da880df20128e626f9f08d3d"
+  },
+  "debug_symbols": "removed for distribution"
+}

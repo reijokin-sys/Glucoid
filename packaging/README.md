@@ -16,16 +16,22 @@ desktop panel.
 
 ## Install
 
+The 1.3.1 native component must be built for the target Linux architecture
+with Qt >=6.10 and libcurl >=7.85 (runtime libcurl.so.4). The current staged
+binary is a local x86_64 build, not a verified KDE Store release. Source
+build: `cmake -S . -B build/native && cmake --build build/native`.
+The packaging helper rejects a missing or stale native component.
+
 With the KDE Plasma 6 tools:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -i glucoid-1.2.0.plasmoid
+kpackagetool6 -t Plasma/Applet -i glucoid-1.3.1.plasmoid
 ```
 
 If an older version is already installed, upgrade it instead:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -u glucoid-1.2.0.plasmoid
+kpackagetool6 -t Plasma/Applet -u glucoid-1.3.1.plasmoid
 ```
 
 or right-click the panel, choose *Enter Edit Mode -> Add Widgets... -> Get New
@@ -38,12 +44,21 @@ Right-click the widget -> *Configure Glucoid*, or click the gear in the card.
 
 | Field | Meaning |
 | --- | --- |
+| Source | Juggluco / WireGuard (required), or independent Nightscout / HTTPS |
+| WireGuard interface | Real active Linux WireGuard interface, e.g. wg0; required only for Juggluco |
 | Address | Nightscout-compatible API, e.g. `https://your-site.example` or `http://<phone-ip>:17580` (Juggluco) |
 | Authentication | *Access token* (Nightscout), *API secret*, or *No authentication* for public read-only sites |
 | Credential | The token or API secret (hidden when authentication is off) |
 | mmol/l | Show mmol/l instead of mg/dl; the thresholds use the same unit |
 | Low / High | Beyond these the number turns red |
 | Target bottom / top | Outside this range the number turns amber |
+
+Juggluco accepts a numeric tunnel address; every request socket is bound to
+the selected WireGuard interface. Independent Nightscout requires HTTPS and
+a valid server certificate, with no tunnel requirement. Editing the server,
+source, interface or authentication clears the saved credential; enter the
+credential for the new connection. Existing HTTPS settings migrate to
+Nightscout, existing HTTP settings require WireGuard.
 
 The four colour thresholds have no defaults. Leave a field empty and that
 warning is not used; with none of them set the value is shown in the panel's

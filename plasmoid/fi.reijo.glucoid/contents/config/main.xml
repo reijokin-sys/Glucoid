@@ -10,6 +10,18 @@
       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
     <kcfgfile name=""/>
     <group name="General">
+        <entry name="source" type="String">
+            <label>juggluco (WireGuard), nightscout (HTTPS), or secure legacy migration</label>
+            <default>legacy</default>
+        </entry>
+        <entry name="wireguardInterface" type="String">
+            <label>Required kernel WireGuard interface for Juggluco</label>
+            <default>wg0</default>
+        </entry>
+        <entry name="credentialScope" type="String">
+            <label>Credential connection scope fingerprint (not a credential)</label>
+            <default></default>
+        </entry>
         <entry name="url" type="String">
             <label>Nightscout-compatible API address</label>
             <default></default>

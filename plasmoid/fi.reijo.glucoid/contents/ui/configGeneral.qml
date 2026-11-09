@@ -12,10 +12,26 @@
 import QtQuick
 import QtQuick.Controls as QQC
 import QtQuick.Layouts
+import "native" as Network
 
 Item {
     id: page
 
+    property string cfg_source: "legacy"
+    property alias cfg_wireguardInterface: wireguardField.text
+    property string cfg_credentialScope: ""
+    property string cfg_sourceDefault: "legacy"
+    property string cfg_wireguardInterfaceDefault: "wg0"
+    property string cfg_credentialScopeDefault: ""
+    readonly property string effectiveSource: cfg_source === "legacy"
+        ? (urlField.text.toLowerCase().startsWith("https:") ? "nightscout" : "juggluco") : cfg_source
+    Network.SecureClient { id: connectionPolicy }
+    function clearCredential() { tokenField.clear(); page.cfg_credentialScope = "" }
+    function bindCredential() {
+        if (tokenField.text.length > 0)
+            page.cfg_credentialScope = connectionPolicy.scopeFor(page.effectiveSource,
+                urlField.text, wireguardField.text, page.cfg_authMode)
+    }
     property alias cfg_url: urlField.text
     property alias cfg_token: tokenField.text
     property alias cfg_unitsInMmol: unitsBox.checked
@@ -94,12 +110,10 @@ Item {
         QQC.Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: "Nightscout site: enter your site address and an access token "
-                  + "(or the API secret).<br>"
-                  + "<b>Juggluco</b>: enter the address of the phone's web server, "
-                  + "e.g. <code>http://192.168.1.23:17580</code>, and the token you "
-                  + "set in Juggluco's web server settings - or choose "
-                  + "<i>No authentication</i> if the server does not require one."
+            text: page.effectiveSource === "juggluco"
+                ? "Juggluco: WireGuard vaaditaan. Anna puhelimen numeerinen tunneliosoite ja liittymä."
+                : "Nightscout: HTTPS-yhteys omaan palvelimeesi. WireGuardia ei tarvita. Käytä omaa lukutunnusta."
+
         }
 
         GridLayout {
@@ -108,16 +122,35 @@ Item {
             columnSpacing: 10
             rowSpacing: 6
 
+            QQC.Label { text: "Tietolähde" }
+            QQC.ComboBox {
+                id: sourceCombo; objectName: "sourceCombo"
+                Layout.fillWidth: true; textRole: "text"; valueRole: "value"
+                model: [ { text: "Juggluco / WireGuard (vaaditaan)", value: "juggluco" },
+                         { text: "Nightscout / HTTPS", value: "nightscout" } ]
+                currentIndex: indexOfValue(page.effectiveSource)
+                onActivated: { const changed = page.effectiveSource !== currentValue; page.cfg_source = currentValue; if (changed) page.clearCredential() }
+            }
+            QQC.Label { text: "WireGuard-liittymä"; visible: page.effectiveSource === "juggluco" }
+            QQC.TextField {
+                id: wireguardField; objectName: "wireguardField"
+                Layout.fillWidth: true; visible: page.effectiveSource === "juggluco"
+                placeholderText: "wg0"; maximumLength: 15
+                onTextEdited: page.clearCredential()
+            }
             QQC.Label { text: "Address" }
             QQC.TextField {
                 id: urlField
                 Layout.fillWidth: true
-                placeholderText: "https://example.nightscout.example or http://phone:17580"
+                objectName: "urlField"
+                placeholderText: page.effectiveSource === "juggluco" ? "http://<tunnel-ip>:17580" : "https://nightscout.example"
+                onTextEdited: page.clearCredential()
             }
 
             QQC.Label { text: "Authentication" }
             QQC.ComboBox {
                 id: authCombo
+                objectName: "authCombo"
                 Layout.fillWidth: true
                 textRole: "text"
                 valueRole: "value"
@@ -127,16 +160,19 @@ Item {
                     { text: "No authentication", value: "none" }
                 ]
                 currentIndex: indexOfValue(page.cfg_authMode)
-                onActivated: page.cfg_authMode = currentValue
+                onActivated: { if (page.cfg_authMode !== currentValue) { page.cfg_authMode = currentValue; page.clearCredential() } }
             }
 
             QQC.Label { text: page.credentialLabel; visible: page.cfg_authMode !== "none" }
             QQC.TextField {
                 id: tokenField
+                objectName: "tokenField"
                 Layout.fillWidth: true
                 visible: page.cfg_authMode !== "none"
                 echoMode: TextInput.Password
-                placeholderText: "required for Nightscout sites"
+                placeholderText: "Tämän yhteyden tunnus"
+                onTextEdited: page.bindCredential()
+                onEditingFinished: page.bindCredential()
             }
         }
 

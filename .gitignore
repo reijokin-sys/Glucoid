@@ -2,3 +2,4 @@ dist/
 *.plasmoid
 *.log
 __pycache__/
+build/

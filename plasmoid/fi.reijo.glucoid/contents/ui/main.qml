@@ -11,24 +11,25 @@
  * opens these settings. Everything is configured in the widget's own
  * settings.
  *
- * Request chains against the public Nightscout API:
- *   token      JWT (/api/v2/authorization/request/<token>) ->
- *              /api/v3/entries (Bearer) -> /api/v2/entries/sgv ->
- *              /api/v1/entries.json?token=
- *   api secret /api/v1/entries.json?api_secret= ->
- *              /api/v2/entries/sgv?api_secret= -> /api/v3/entries?api_secret=
- *   none       /api/v1/entries.json -> /api/v2/entries/sgv ->
- *              /api/v3/entries
+ * Network requests use the bounded native backend. Juggluco requires a
+ * WireGuard socket binding; independent Nightscout requires HTTPS.
+ * Credentials and request generations never cross connection changes.
  *
  * There are three trend arrows (user's decision 2026-10-08): flat, diagonal
- * and straight up/down, for deltas of 0.0, up to 0.2 and more than 0.2 in
- * mmol/l (in mg/dl: 0, 1-4, 5+). The API's own direction is used only when
- * there is a single sample and no delta, and it is folded into the same three
- * arrows.
+ * and straight up/down. Since 2026-10-12 they follow the **change per minute**
+ * (user's request: "+/- lukema on per minuutti eli muutos/min"), fitted over
+ * the readings of the last `trendWindowMinutes` minutes with least squares so
+ * that one noisy pair of readings cannot swing the arrow. The bands make the
+ * arrow behave like the Libre one (measured against the source's own
+ * `direction`): flat below 0.11 mmol/l/min, the diagonal up to 0.22, the
+ * straight arrow above that (mg/dl per minute: 2 and 4). Only when no rate can
+ * be fitted at all does the API's own `direction` give the arrow.
  */
 
 import QtQuick
+import "native" as Network
 import QtQuick.Layouts
+import QtQuick.Controls as Controls
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
@@ -38,19 +39,45 @@ PlasmoidItem {
 
     // ---- state ------------------------------------------------------------
     readonly property bool configured: plasmoid.configuration.url.length > 0
-    property string jwt: ""
+    property bool initializingScope: false
+    property bool scopeInitialized: false
 
-    property string valueText: "?.?"
-    property string deltaText: "?.?"
-    property string trendText: "?"
+    // No reading yet: the badge and the card show a neutral "---" instead of
+    // the old "?.?", which read like a broken number (user's request
+    // 2026-10-12). The delta and the trend arrow appear only after a reading
+    // has really arrived, so `hasData` now gates them - the placeholder text
+    // no longer doubles as the "is there any data" test.
+    property string valueText: "---"
+    property string deltaText: "---"
+    property string trendText: ""
+    property bool hasData: false
+    // False while no rate of change could be fitted (only one reading): the
+    // change is then hidden rather than shown as a flat 0.00.
+    property bool rateKnown: false
     property int ageMinutes: -1
     // plain = no threshold set, so the value carries no colour judgement
     property string status: "unknown"   // ok | warning | critical | stale | plain | unknown
+    // The badge and the card show the reading only while it is current: with
+    // no reading yet, or with a stale one (the age limit has passed, or three
+    // fetches failed in a row), both draw the same neutral "---" instead of
+    // an old number (user's request 2026-10-12).
+    readonly property bool readingCurrent: root.hasData && root.status !== "stale"
+    readonly property string shownValue: root.readingCurrent ? root.valueText : "---"
     property int consecutiveFailures: 0
     property string lastError: ""
     property string sourceNote: ""      // which API step answered (v1|v2|v3)
-    property string trendSource: ""     // delta | api | unknown
-    property bool alternateCredentialTried: false
+    property string trendSource: ""     // rate | api | unknown
+
+    // How many minutes of readings the trend (and the shown change) is fitted
+    // over. A five-minute sensor gives about four points inside it.
+    readonly property int trendWindowMinutes: 15
+    Network.SecureClient {
+        id: secureClient
+        onSucceeded: (entries, api) => root.applyData(root.normalizeEntries(Array.from(entries)), api)
+        onFailed: message => root.note(message)
+    }
+    Timer { id: connectionDebounce; interval: 25; onTriggered: root.refresh() }
+
 
     // ---- palette ---------------------------------------------------------
     // The card, its border and the texts follow the system colour scheme, so
@@ -91,24 +118,6 @@ PlasmoidItem {
         }
     }
 
-    // Glyphs for the direction values defined by the Nightscout API
-    // (nightscout.github.io): diagonal = slow change, straight = fast,
-    // doubled = very fast.
-    readonly property var trendGlyphs: ({
-        "NONE": "\u21FC",
-        "TripleUp": "\u290A",
-        "DoubleUp": "\u21C8",
-        "SingleUp": "\u2191",
-        "FortyFiveUp": "\u2197",
-        "Flat": "\u2192",
-        "FortyFiveDown": "\u2198",
-        "SingleDown": "\u2193",
-        "DoubleDown": "\u21CA",
-        "TripleDown": "\u290B",
-        "NOT COMPUTABLE": "-",
-        "RATE OUT OF RANGE": "\u21D5"
-    })
-
     toolTipMainText: "Glucoid"
     toolTipSubText: root.configured
         ? (root.lastError.length > 0 ? root.lastError
@@ -121,6 +130,7 @@ PlasmoidItem {
     // ---- startup ----------------------------------------------------------
     Component.onCompleted: {
         if (root.configured) {
+            root.initializeScope();
             root.refresh();
             pollTimer.restart();
         }
@@ -171,10 +181,12 @@ PlasmoidItem {
     // Applying the settings dialog fetches again and updates the poll timer.
     Connections {
         target: plasmoid.configuration
-        // Settings changed: forget the learned credential style and fetch.
-        function onUrlChanged() { root.alternateCredentialTried = false; root.refresh(); pollTimer.restart() }
-        function onTokenChanged() { root.alternateCredentialTried = false; root.refresh(); pollTimer.restart() }
-        function onAuthModeChanged() { root.alternateCredentialTried = false; root.refresh(); pollTimer.restart() }
+        function onUrlChanged() { root.connectionChanged() }
+        function onTokenChanged() { root.connectionChanged() }
+        function onAuthModeChanged() { root.connectionChanged() }
+        function onSourceChanged() { root.connectionChanged() }
+        function onWireguardInterfaceChanged() { root.connectionChanged() }
+        function onCredentialScopeChanged() { if (!root.initializingScope) root.connectionChanged() }
         function onIntervalChanged() { pollTimer.restart() }
         // The thresholds, the unit and the staleness limit are applied to the
         // reading that is already on screen, so fetch again instead of waiting
@@ -217,49 +229,21 @@ PlasmoidItem {
         return (isNaN(v) || v <= 0) ? 0 : v;
     }
 
-    // Credential appended to the query string (the Nightscout API accepts
-    // either an access token or the API secret this way).
-    function credentialQuery() {
-        // Users often cannot tell an access token from an API secret, so if
-        // the selected style answers 403 the other one is tried once.
-        let mode = root.authMode();
-        if (root.alternateCredentialTried)
-            mode = (mode === "token") ? "apisecret" : "token";
-        switch (mode) {
-        case "token": return "token=" + encodeURIComponent(root.credential());
-        case "apisecret": return "api_secret=" + encodeURIComponent(root.credential());
-        default: return "";
-        }
-    }
-
-    // 403 usually means "wrong credential style"; retry once with the other
-    // style, otherwise continue with the next endpoint or report the failure.
-    function handleFailure(status, next) {
-        if (status === 403 && root.credential().length > 0
-                && !root.alternateCredentialTried) {
-            root.alternateCredentialTried = true;
-            root.refresh();
-            return;
-        }
-        if (next) next();
-        else if (status === 0)
-            root.note("No response from the server (network or timeout)");
-        else
-            root.note("Connection failed (HTTP " + status + ")");
-    }
-
-    function withCredential(url) {
-        const query = root.credentialQuery();
-        if (query.length === 0) return url;
-        return url + (url.indexOf("?") >= 0 ? "&" : "?") + query;
-    }
-
-    // The API's own direction is the fallback when there is only one sample
-    // (and so no delta to compare). It is folded into the same three arrows,
-    // so the panel never shows a fourth kind of arrow.
+    // The arrow is the API's own direction - the sensor's trend arrow
+    // (user's request 2026-10-12: "tee nuoli trendinuolena"). Nightscout and
+    // Juggluco report it as one of the names below, computed by the source
+    // itself from the trend rather than from whichever two readings happen to
+    // be compared, so it is folded into the widget's three arrows: diagonal =
+    // slow change, straight = fast, and the doubled/tripled levels are the
+    // same direction.
+    //
+    // An empty answer means "the API gave no usable direction" (a missing
+    // field, "NOT COMPUTABLE", "RATE OUT OF RANGE"): the caller then falls
+    // back to the difference between the two latest readings.
     function arrowFor(direction) {
         switch (direction) {
-        case "Flat": return "\u2192";
+        case "Flat":
+        case "NONE": return "\u2192";
         case "FortyFiveUp": return "\u2197";
         case "FortyFiveDown": return "\u2198";
         case "SingleUp":
@@ -268,7 +252,7 @@ PlasmoidItem {
         case "SingleDown":
         case "DoubleDown":
         case "TripleDown": return "\u2193";
-        default: return root.trendGlyphs[direction] || "-";
+        default: return "";
         }
     }
 
@@ -283,16 +267,40 @@ PlasmoidItem {
         return root.ageMinutes === 0 ? root.colorOk : root.colorText;
     }
 
-    // Three arrows only (user's decision 2026-10-08): flat, diagonal and
-    // straight up/down - for 0.0, up to 0.2 and more than 0.2 (mmol/l).
-    // In mg/dl the same bands are 0, 1-4 and 5+.
-    function arrowFromDelta(delta) {
-        const a = Math.abs(delta);
-        const diagonal = root.inMmol() ? 0.05 : 0.5;  // from here: a direction
-        const straight = root.inMmol() ? 0.2 : 4.5;   // from here: straight arrow
+    // Least-squares slope of the readings, in mg/dl per minute (0 when there
+    // is nothing to fit). Time is measured from the oldest point.
+    function slopePerMinute(points) {
+        if (!points || points.length < 2) return 0;
+        const t0 = points[points.length - 1].date;
+        let n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+        for (let i = 0; i < points.length; i++) {
+            const x = (points[i].date - t0) / 60000;   // minutes from t0
+            const y = points[i].sgv;
+            n += 1;
+            sx += x;
+            sy += y;
+            sxx += x * x;
+            sxy += x * y;
+        }
+        const denom = n * sxx - sx * sx;
+        if (denom === 0) return 0;
+        return (n * sxy - sx * sy) / denom;
+    }
+
+    // The trend arrow from the change per minute (user's request 2026-10-12:
+    // it has to behave like the Libre arrow). The bands are the ones the
+    // Libre/Juggluco side actually uses, measured against the source's own
+    // `direction` field on 12.10.2026: flat below 0.11 mmol/l/min, the
+    // diagonal up to 0.22, straight above that; in mg/dl per minute the same
+    // bands are 2 and 4. (Abbott's published table quotes 0.06/0.11, but that
+    // is twice as eager as the arrow the phone shows.)
+    function arrowFromRate(rate) {
+        const a = Math.abs(rate);
+        const diagonal = root.inMmol() ? 0.11 : 2.0;   // from here: a direction
+        const straight = root.inMmol() ? 0.22 : 4.0;   // from here: straight arrow
         if (a < diagonal) return "\u2192";
-        if (a <= straight) return delta > 0 ? "\u2197" : "\u2198";
-        return delta > 0 ? "\u2191" : "\u2193";
+        if (a <= straight) return rate > 0 ? "\u2197" : "\u2198";
+        return rate > 0 ? "\u2191" : "\u2193";
     }
 
     function parse(text) {
@@ -331,103 +339,35 @@ PlasmoidItem {
     }
 
     // ---- fetching ---------------------------------------------------------
+    function initializeScope() {
+        if (root.scopeInitialized || !root.configured) return;
+        const expected = secureClient.scopeFor(plasmoid.configuration.source,
+            root.baseUrl(), plasmoid.configuration.wireguardInterface, root.authMode());
+        if (expected.length === 0) return;
+        root.scopeInitialized = true;
+        if (root.authMode() !== "none" && root.credential().length > 0
+                && plasmoid.configuration.credentialScope.length === 0) {
+            root.initializingScope = true;
+            plasmoid.configuration.credentialScope = expected;
+            root.initializingScope = false;
+        }
+    }
+
+    function connectionChanged() {
+        secureClient.cancel();
+        root.hasData = false;
+        root.valueText = "---"; root.deltaText = "---"; root.trendText = "";
+        root.rateKnown = false; root.status = "unknown"; root.ageMinutes = -1;
+        root.lastError = ""; root.sourceNote = ""; root.consecutiveFailures = 0;
+        connectionDebounce.restart(); pollTimer.restart();
+    }
+
     function refresh() {
-        if (!root.configured) return;
-
-        const mode = root.authMode();
-        if (mode !== "none" && root.credential().length === 0) {
-            root.note("No credential set in the settings");
-            return;
-        }
-
-        if (mode === "token") {
-            // Access token: first obtain a JWT, then use the newer endpoints.
-            root.requestJwt();
-        } else {
-            // API secret or no authentication: start from the plain endpoints.
-            root.fetchV1(() => root.fetchV2(() => root.fetchV3(null)));
-        }
-    }
-
-    function requestJwt() {
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", root.baseUrl() + "/api/v2/authorization/request/"
-                 + encodeURIComponent(root.credential()));
-        xhr.timeout = 10000;
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
-            if (xhr.status === 200) {
-                let token = "";
-                try { token = JSON.parse(xhr.responseText).token || ""; } catch (e) { token = ""; }
-                if (token.length > 0) {
-                    root.jwt = token;
-                    root.fetchV3(() => root.fetchV2(() => root.fetchV1(null)));
-                    return;
-                }
-            }
-            // No JWT: the plain endpoint with the access token still works.
-            // Try the whole chain here too, so a site that does not answer on
-            // v1 is still read through v2 or v3.
-            root.fetchV1(() => root.fetchV2(() => root.fetchV3(null)));
-        };
-        xhr.send();
-    }
-
-    function fetchV3(next) {
-        const url = root.withCredential(root.baseUrl()
-            + "/api/v3/entries?sort$desc=date&limit=10"
-            + "&fields=sgv,direction,date&type$eq=sgv");
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", url);
-        if (root.jwt.length > 0)
-            xhr.setRequestHeader("Authorization", "Bearer " + root.jwt);
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.timeout = 10000;
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
-            if (xhr.status === 200) {
-                root.applyData(root.normalizeEntries(root.parse(xhr.responseText)), "v3");
-            } else {
-                root.handleFailure(xhr.status, next);
-            }
-        };
-        xhr.send();
-    }
-
-    function fetchV2(next) {
-        const url = root.withCredential(root.baseUrl() + "/api/v2/entries/sgv?count=10");
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", url);
-        if (root.jwt.length > 0)
-            xhr.setRequestHeader("Authorization", "Bearer " + root.jwt);
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.timeout = 10000;
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
-            if (xhr.status === 200) {
-                root.applyData(root.normalizeEntries(root.parse(xhr.responseText)), "v2");
-            } else {
-                root.handleFailure(xhr.status, next);
-            }
-        };
-        xhr.send();
-    }
-
-    function fetchV1(next) {
-        const url = root.withCredential(root.baseUrl() + "/api/v1/entries.json?count=10");
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", url);
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.timeout = 10000;
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
-            if (xhr.status === 200) {
-                root.applyData(root.normalizeEntries(root.parse(xhr.responseText)), "v1");
-            } else {
-                root.handleFailure(xhr.status, next);
-            }
-        };
-        xhr.send();
+        if (!root.configured) { secureClient.cancel(); return; }
+        root.initializeScope();
+        secureClient.fetch(plasmoid.configuration.source, root.baseUrl(),
+            plasmoid.configuration.wireguardInterface, root.authMode(),
+            root.credential(), plasmoid.configuration.credentialScope);
     }
 
     // ---- rendering --------------------------------------------------------
@@ -439,24 +379,45 @@ PlasmoidItem {
         root.consecutiveFailures = 0;
         root.lastError = "";
         root.sourceNote = source;
+        root.hasData = true;
 
         const last = entries[0];
-        const prev = entries.length > 1 ? entries[1] : last;
+
+        // The change per minute (user's request 2026-10-12: "muutos/min"), and
+        // the trend arrow from the same number. It is fitted over the readings
+        // of the last `trendWindowMinutes` minutes with least squares, so a
+        // single noisy pair of readings cannot swing the arrow. A sensor that
+        // reports more slowly than the window gets the previous reading added,
+        // so the rate is never reported as zero while there is data.
+        const windowMin = root.trendWindowMinutes;
+        const points = [];
+        for (let i = 0; i < entries.length; i++) {
+            if (i > 0 && (last.date - entries[i].date) / 60000 > windowMin)
+                break;
+            points.push(entries[i]);
+        }
+        if (points.length < 2 && entries.length > 1)
+            points.push(entries[1]);
+
+        const rateMgdl = root.slopePerMinute(points);      // mg/dl per minute
+        const rate = root.inMmol() ? rateMgdl / 18 : rateMgdl;
+        const decimals = root.inMmol() ? 2 : 1;
+        const shownRate = Number(rate.toFixed(decimals));
 
         const displayLast = root.inMmol() ? Number((last.sgv / 18).toFixed(1)) : last.sgv;
-        let delta = Math.round((last.sgv - prev.sgv) * 100) / 100;
-        delta = root.inMmol() ? Number((delta / 18).toFixed(1)) : Math.round(delta);
-
         root.valueText = root.inMmol() ? displayLast.toFixed(1) : String(displayLast);
-        root.deltaText = (delta >= 0 ? "+" : "") + (root.inMmol() ? delta.toFixed(1) : String(delta));
+        root.deltaText = (shownRate > 0 ? "+" : "") + shownRate.toFixed(decimals);
+        root.rateKnown = points.length > 1;
         root.ageMinutes = Math.min(999, Math.max(0, Math.floor((Date.now() - last.date) / 60000)));
 
-        const apiDirection = (last.direction || "").toString();
-        if (entries.length > 1) {
-            root.trendText = root.arrowFromDelta(delta);
-            root.trendSource = "delta";
-        } else if (apiDirection.length > 0) {
-            root.trendText = root.arrowFor(apiDirection);
+        // The arrow follows the rate; the API's own direction is only the
+        // fallback when no rate could be fitted (a single reading).
+        const apiArrow = root.arrowFor((last.direction || "").toString());
+        if (root.rateKnown) {
+            root.trendText = root.arrowFromRate(rate);
+            root.trendSource = "rate";
+        } else if (apiArrow.length > 0) {
+            root.trendText = apiArrow;
             root.trendSource = "api";
         } else {
             root.trendText = "-";
@@ -492,11 +453,6 @@ PlasmoidItem {
     readonly property int panelValueSize: 24
     readonly property int panelAgeSize: 14
 
-    /// The delta is worth showing only when there is one: "?.?" is the
-    /// placeholder for "no reading yet" and belongs in the card, not in the
-    /// panel.
-    readonly property bool deltaKnown: root.deltaText.indexOf("?") < 0
-
     compactRepresentation: Item {
         id: compactRoot
 
@@ -529,15 +485,17 @@ PlasmoidItem {
                 textFormat: Text.RichText
                 font.pixelSize: root.panelValueSize
                 font.weight: Font.Normal
-                text: "<span style=\"color:" + root.stateColor + "\">" + root.valueText + "</span>"
-                      + "&nbsp;<span style=\"color:" + root.colorText + "\">" + root.trendText + "</span>"
+                text: "<span style=\"color:" + root.stateColor + "\">" + root.shownValue + "</span>"
+                      + (root.readingCurrent
+                         ? "&nbsp;<span style=\"color:" + root.colorText + "\">" + root.trendText + "</span>"
+                         : "")
             }
 
             // The delta, in the same size as the age so the row stays one
             // line tall (the panel gives the applet its own row height).
             Text {
                 Layout.alignment: Qt.AlignVCenter
-                visible: root.configured && root.deltaKnown
+                visible: root.configured && root.readingCurrent && root.rateKnown
                 text: root.deltaText
                 color: root.colorMuted
                 font.pixelSize: root.panelAgeSize
@@ -576,15 +534,16 @@ PlasmoidItem {
         // from it. Without a fixed size a fresh applet opens the popup at
         // Plasma's default (560x400) and the card stretches with it.
         width: 196
-        height: 84
+        height: 120
         implicitWidth: width
         implicitHeight: height
         Layout.preferredWidth: 196
-        Layout.preferredHeight: 84
+        Layout.preferredHeight: 120
 
         Rectangle {
             id: card
             anchors.fill: parent
+            anchors.bottomMargin: 36
             // The card is designed for 196x84; scale the typography with the
             // smaller of the two directions so it stays readable at any size
             // a panel or the desktop gives us.
@@ -622,7 +581,7 @@ PlasmoidItem {
                 Text {
                     Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
                     visible: root.configured
-                    text: root.valueText
+                    text: root.shownValue
                     color: root.stateColor
                     font.pixelSize: Math.max(8, Math.round(35 * card.contentScale))
                     font.weight: Font.Normal
@@ -646,6 +605,7 @@ PlasmoidItem {
 
                     Text {
                         Layout.alignment: Qt.AlignRight
+                        visible: root.readingCurrent && root.rateKnown
                         text: root.deltaText
                         color: root.colorText
                         font.pixelSize: Math.max(6, Math.round(13 * card.contentScale))
@@ -661,6 +621,7 @@ PlasmoidItem {
 
                     Text {
                         Layout.alignment: Qt.AlignRight
+                        visible: root.readingCurrent
                         text: root.trendText
                         color: root.colorText
                         font.pixelSize: Math.max(7, Math.round(17 * card.contentScale))
@@ -736,6 +697,15 @@ PlasmoidItem {
 
             }
 
+        }
+
+        Controls.Button {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 30
+            text: "Avaa seuranta"
+            onClicked: Qt.openUrlExternally("glucoid-studio://today")
         }
     }
 }
