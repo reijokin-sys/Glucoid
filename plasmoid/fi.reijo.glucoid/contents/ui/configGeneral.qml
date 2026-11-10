@@ -10,12 +10,17 @@
  */
 
 import QtQuick
+import "translations.js" as Language
 import QtQuick.Controls as QQC
 import QtQuick.Layouts
 import "native" as Network
 
 Item {
     id: page
+    property string cfg_language: "en"
+    property string cfg_languageDefault: "en"
+    function tr(source) { return Language.text(page.cfg_language, source); }
+
 
     property string cfg_source: "legacy"
     property alias cfg_wireguardInterface: wireguardField.text
@@ -61,7 +66,7 @@ Item {
     property real cfg_targetBottom: 0
 
     readonly property string credentialLabel: page.cfg_authMode === "apisecret"
-                                             ? "API secret" : "Access token"
+                                             ? page.tr("API secret") : page.tr("Access token")
 
     // Threshold fields: an empty field means "not set" (0). Two things must
     // hold at the same time (both reported by the user on 2026-10-06):
@@ -79,7 +84,7 @@ Item {
     // separator when typing: a DoubleValidator only accepts the separator of
     // its locale, which is why "3.5" could not be typed at all with the
     // Finnish formats (the user's report on 2026-10-06).
-    readonly property string decimalSeparator: Qt.locale().decimalPoint
+    readonly property string decimalSeparator: Qt.locale(page.cfg_language === "fi" ? "fi_FI" : "en_GB").decimalPoint
 
     function formatThreshold(value) {
         // JS Number.toString() always uses "."; show the locale's separator
@@ -102,6 +107,18 @@ Item {
         anchors.right: parent.right
         spacing: 10
 
+        RowLayout {
+            Layout.fillWidth: true
+            QQC.Label { text: page.tr("Language") }
+            QQC.ComboBox {
+                objectName: "languageSelector"
+                Layout.fillWidth: true
+                textRole: "label"; valueRole: "value"
+                model: [{label: "English", value: "en"}, {label: "Suomi", value: "fi"}]
+                currentIndex: page.cfg_language === "fi" ? 1 : 0
+                onActivated: page.cfg_language = currentValue
+            }
+        }
         QQC.Label {
             text: "<b>Nightscout</b>"
             textFormat: Text.RichText
@@ -111,8 +128,8 @@ Item {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             text: page.effectiveSource === "juggluco"
-                ? "Juggluco: WireGuard vaaditaan. Anna puhelimen numeerinen tunneliosoite ja liittymä."
-                : "Nightscout: HTTPS-yhteys omaan palvelimeesi. WireGuardia ei tarvita. Käytä omaa lukutunnusta."
+                ? page.tr("Juggluco: WireGuard vaaditaan. Anna puhelimen numeerinen tunneliosoite ja liittymä.")
+                : page.tr("Nightscout: HTTPS-yhteys omaan palvelimeesi. WireGuardia ei tarvita. Käytä omaa lukutunnusta.")
 
         }
 
@@ -122,23 +139,23 @@ Item {
             columnSpacing: 10
             rowSpacing: 6
 
-            QQC.Label { text: "Tietolähde" }
+            QQC.Label { text: page.tr("Tietolähde") }
             QQC.ComboBox {
                 id: sourceCombo; objectName: "sourceCombo"
                 Layout.fillWidth: true; textRole: "text"; valueRole: "value"
-                model: [ { text: "Juggluco / WireGuard (vaaditaan)", value: "juggluco" },
+                model: [ { text: page.tr("Juggluco / WireGuard (vaaditaan)"), value: "juggluco" },
                          { text: "Nightscout / HTTPS", value: "nightscout" } ]
                 currentIndex: indexOfValue(page.effectiveSource)
                 onActivated: { const changed = page.effectiveSource !== currentValue; page.cfg_source = currentValue; if (changed) page.clearCredential() }
             }
-            QQC.Label { text: "WireGuard-liittymä"; visible: page.effectiveSource === "juggluco" }
+            QQC.Label { text: page.tr("WireGuard-liittymä"); visible: page.effectiveSource === "juggluco" }
             QQC.TextField {
                 id: wireguardField; objectName: "wireguardField"
                 Layout.fillWidth: true; visible: page.effectiveSource === "juggluco"
                 placeholderText: "wg0"; maximumLength: 15
                 onTextEdited: page.clearCredential()
             }
-            QQC.Label { text: "Address" }
+            QQC.Label { text: page.tr("Address") }
             QQC.TextField {
                 id: urlField
                 Layout.fillWidth: true
@@ -147,7 +164,7 @@ Item {
                 onTextEdited: page.clearCredential()
             }
 
-            QQC.Label { text: "Authentication" }
+            QQC.Label { text: page.tr("Authentication") }
             QQC.ComboBox {
                 id: authCombo
                 objectName: "authCombo"
@@ -155,9 +172,9 @@ Item {
                 textRole: "text"
                 valueRole: "value"
                 model: [
-                    { text: "Access token", value: "token" },
-                    { text: "API secret", value: "apisecret" },
-                    { text: "No authentication", value: "none" }
+                    { text: page.tr("Access token"), value: "token" },
+                    { text: page.tr("API secret"), value: "apisecret" },
+                    { text: page.tr("No authentication"), value: "none" }
                 ]
                 currentIndex: indexOfValue(page.cfg_authMode)
                 onActivated: { if (page.cfg_authMode !== currentValue) { page.cfg_authMode = currentValue; page.clearCredential() } }
@@ -170,7 +187,7 @@ Item {
                 Layout.fillWidth: true
                 visible: page.cfg_authMode !== "none"
                 echoMode: TextInput.Password
-                placeholderText: "Tämän yhteyden tunnus"
+                placeholderText: page.tr("Tämän yhteyden tunnus")
                 onTextEdited: page.bindCredential()
                 onEditingFinished: page.bindCredential()
             }
@@ -178,11 +195,11 @@ Item {
 
         QQC.CheckBox {
             id: unitsBox
-            text: "Show readings as mmol/l (otherwise mg/dl)"
+            text: page.tr("Show readings as mmol/l (otherwise mg/dl)")
         }
 
         QQC.Label {
-            text: "<b>Colour thresholds</b> (in the same unit as the display)"
+            text: page.tr("<b>Colour thresholds</b> (in the same unit as the display)")
             textFormat: Text.RichText
             Layout.topMargin: 4
         }
@@ -192,7 +209,7 @@ Item {
             columnSpacing: 10
             rowSpacing: 6
 
-            QQC.Label { text: "Low" }
+            QQC.Label { text: page.tr("Low") }
             QQC.TextField {
                 id: lowField
                 objectName: "lowField"
@@ -204,7 +221,7 @@ Item {
                 onTextEdited: page.cfg_low = page.commitThreshold(text, page.cfg_low)
                 onEditingFinished: page.cfg_low = page.commitThreshold(text, page.cfg_low)
             }
-            QQC.Label { text: "High" }
+            QQC.Label { text: page.tr("High") }
             QQC.TextField {
                 id: highField
                 objectName: "highField"
@@ -217,7 +234,7 @@ Item {
                 onEditingFinished: page.cfg_high = page.commitThreshold(text, page.cfg_high)
             }
 
-            QQC.Label { text: "Target bottom" }
+            QQC.Label { text: page.tr("Target bottom") }
             QQC.TextField {
                 id: bottomField
                 objectName: "bottomField"
@@ -229,7 +246,7 @@ Item {
                 onTextEdited: page.cfg_targetBottom = page.commitThreshold(text, page.cfg_targetBottom)
                 onEditingFinished: page.cfg_targetBottom = page.commitThreshold(text, page.cfg_targetBottom)
             }
-            QQC.Label { text: "Target top" }
+            QQC.Label { text: page.tr("Target top") }
             QQC.TextField {
                 id: topField
                 objectName: "topField"
@@ -247,15 +264,15 @@ Item {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             textFormat: Text.RichText
-            text: "Low or High: the number turns red. Outside the target range: "
-                  + "the number turns amber.<br>These four fields have no defaults - "
-                  + "leave a field empty and that warning is simply not used "
-                  + "(the value is then shown in the normal text colour)."
+            text: page.tr("Low or High: the number turns red. Outside the target range: ")
+                  + page.tr("the number turns amber.<br>These four fields have no defaults - ")
+                  + page.tr("leave a field empty and that warning is simply not used ")
+                  + page.tr("(the value is then shown in the normal text colour).")
         }
 
         QQC.CheckBox {
             id: advancedBox
-            text: "Advanced"
+            text: page.tr("Advanced")
             Layout.topMargin: 4
         }
 
@@ -265,7 +282,7 @@ Item {
             columnSpacing: 10
             rowSpacing: 6
 
-            QQC.Label { text: "Poll interval (s)" }
+            QQC.Label { text: page.tr("Poll interval (s)") }
             QQC.SpinBox {
                 id: intervalBox
                 from: 15
@@ -274,7 +291,7 @@ Item {
                 editable: true
             }
 
-            QQC.Label { text: "Stale after (min, 0 = never)" }
+            QQC.Label { text: page.tr("Stale after (min, 0 = never)") }
             QQC.SpinBox {
                 id: ageLimitBox
                 from: 0

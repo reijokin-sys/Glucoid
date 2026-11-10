@@ -10,6 +10,10 @@
       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
     <kcfgfile name=""/>
     <group name="General">
+        <entry name="language" type="String">
+            <label>Interface language: en or fi</label>
+            <default>en</default>
+        </entry>
         <entry name="source" type="String">
             <label>juggluco (WireGuard), nightscout (HTTPS), or secure legacy migration</label>
             <default>legacy</default>

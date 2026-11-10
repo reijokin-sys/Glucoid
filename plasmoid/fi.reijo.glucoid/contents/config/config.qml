@@ -12,7 +12,7 @@ import org.kde.plasma.configuration
 
 ConfigModel {
     ConfigCategory {
-        name: "Connection"
+        name: "Glucoid"
         icon: "network-connect"
         source: "configGeneral.qml"
     }

@@ -27,6 +27,7 @@
  */
 
 import QtQuick
+import "translations.js" as Language
 import "native" as Network
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
@@ -36,6 +37,9 @@ import org.kde.kirigami as Kirigami
 
 PlasmoidItem {
     id: root
+    readonly property string language: plasmoid.configuration.language === "fi" ? "fi" : "en"
+    function tr(source) { return Language.text(root.language, source); }
+
 
     // ---- state ------------------------------------------------------------
     readonly property bool configured: plasmoid.configuration.url.length > 0
@@ -120,10 +124,10 @@ PlasmoidItem {
 
     toolTipMainText: "Glucoid"
     toolTipSubText: root.configured
-        ? (root.lastError.length > 0 ? root.lastError
+        ? (root.lastError.length > 0 ? root.tr(root.lastError)
                                      : (root.ageText().length > 0
-                                        ? root.ageText() + " \u00B7 ok" : "ok"))
-        : "Set the address and credential in the widget's settings"
+                                        ? root.ageText() + root.tr(" \u00B7 ok") : root.tr("ok")))
+        : root.tr("Set the address and credential in the widget's settings")
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
@@ -259,7 +263,7 @@ PlasmoidItem {
     // Age of the reading as words: "now", "1 min ago", "7 min ago".
     function ageText() {
         if (root.ageMinutes < 0) return "";
-        return root.ageMinutes === 0 ? "now" : root.ageMinutes + " min ago";
+        return root.ageMinutes === 0 ? root.tr("now") : root.ageMinutes + root.tr(" min ago");
     }
 
     // A reading from this minute is highlighted green; older ones stay white.
@@ -373,7 +377,7 @@ PlasmoidItem {
     // ---- rendering --------------------------------------------------------
     function applyData(entries, source) {
         if (!entries || entries.length === 0) {
-            root.note("No readings");
+            root.note(root.tr("No readings"));
             return;
         }
         root.consecutiveFailures = 0;
@@ -518,7 +522,7 @@ PlasmoidItem {
             Text {
                 Layout.alignment: Qt.AlignVCenter
                 visible: !root.configured
-                text: "Glucoid\nclick"
+                text: root.tr("Glucoid\nclick")
                 color: root.colorMuted
                 horizontalAlignment: Text.AlignHCenter
                 lineHeight: 0.95
@@ -591,7 +595,7 @@ PlasmoidItem {
                 Text {
                     Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
                     visible: !root.configured
-                    text: "Setup"
+                    text: root.tr("Setup")
                     color: root.colorMuted
                     font.pixelSize: Math.max(10, Math.round(28 * card.contentScale))
                     font.weight: Font.Normal
@@ -704,7 +708,7 @@ PlasmoidItem {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: 30
-            text: "Avaa seuranta"
+            text: root.tr("Avaa seuranta")
             onClicked: Qt.openUrlExternally("glucoid-studio://today")
         }
     }

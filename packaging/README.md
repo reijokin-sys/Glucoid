@@ -16,7 +16,7 @@ desktop panel.
 
 ## Install
 
-The 1.3.1 native component must be built for the target Linux architecture
+The 1.4.0 native component must be built for the target Linux architecture
 with Qt >=6.10 and libcurl >=7.85 (runtime libcurl.so.4). The current staged
 binary is a local x86_64 build, not a verified KDE Store release. Source
 build: `cmake -S . -B build/native && cmake --build build/native`.
@@ -25,13 +25,13 @@ The packaging helper rejects a missing or stale native component.
 With the KDE Plasma 6 tools:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -i glucoid-1.3.1.plasmoid
+kpackagetool6 -t Plasma/Applet -i glucoid-1.4.0.plasmoid
 ```
 
 If an older version is already installed, upgrade it instead:
 
 ```sh
-kpackagetool6 -t Plasma/Applet -u glucoid-1.3.1.plasmoid
+kpackagetool6 -t Plasma/Applet -u glucoid-1.4.0.plasmoid
 ```
 
 or right-click the panel, choose *Enter Edit Mode -> Add Widgets... -> Get New
@@ -41,6 +41,9 @@ panel.
 ## Settings
 
 Right-click the widget -> *Configure Glucoid*, or click the gear in the card.
+The interface language is selected in Settings: **English (default)** or
+**Finnish**. It affects only the widget's own texts; Plasma's standard
+settings pages follow the desktop language.
 
 | Field | Meaning |
 | --- | --- |

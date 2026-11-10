@@ -1,8 +1,8 @@
-# Third-party notices — Glucoid 1.3.0
+# Third-party notices — Glucoid 1.3.1
 
 Glucoid's own QML and native extension are GPL-3.0-or-later; see LICENSE.
 Complete corresponding application source and build tools are available at
-https://github.com/reijokin-sys/Glucoid/tree/v1.3.0 . Build requirements and
+https://github.com/reijokin-sys/Glucoid/tree/v1.3.1 . Build requirements and
 commands are in README.md. The native extension can be rebuilt and replaced;
 there is no signature restriction on a modified build.
 
