@@ -1,4 +1,4 @@
-# Glucoid 1.3.1
+# Glucoid 1.4.1
 
 A glucose badge for the KDE Plasma panel: latest value, trend arrow, delta
 and reading age. Click for the detail card and settings. Optional thresholds,
@@ -27,7 +27,7 @@ Old HTTPS settings migrate to Nightscout; old HTTP settings require WireGuard.
 
 ## Requirements
 
-The prebuilt 1.3.1 package targets **Linux x86_64, Ubuntu/Kubuntu 26.04,
+The prebuilt 1.4.1 package targets **Linux x86_64, Ubuntu/Kubuntu 26.04,
 Plasma 6.6 and Qt 6.10**, with system libcurl.so.4 (>=7.85). It includes a
 native Qt/libcurl extension, not only QML. It requires no root privilege or
 background service. Other architectures or older Qt require a source build
@@ -41,16 +41,15 @@ validate a real Nightscout installation, sensor or clinical decisions.
 Download the matching .plasmoid and SHA-256 file from the GitHub release.
 
 ```sh
-sha256sum -c glucoid-1.3.1.plasmoid.sha256
-kpackagetool6 -t Plasma/Applet -i glucoid-1.3.1.plasmoid
+sha256sum -c glucoid-1.4.1.plasmoid.sha256
+kpackagetool6 -t Plasma/Applet -i glucoid-1.4.1.plasmoid
 # Existing installation:
-kpackagetool6 -t Plasma/Applet -u glucoid-1.3.1.plasmoid
+kpackagetool6 -t Plasma/Applet -u glucoid-1.4.1.plasmoid
 ```
 
 Restart Plasma or log out/in to load the updated native module. Configure
 Glucoid from its gear or the widget's context menu. Existing settings are
-preserved. The optional “Avaa seuranta” button opens Glucoid Studio if it is
-installed separately; Studio is not needed for widget data fetching.
+preserved. Glucoid fetches its data independently; Glucoid Studio is not required.
 
 ## Build
 

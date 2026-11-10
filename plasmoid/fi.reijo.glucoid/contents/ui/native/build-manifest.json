@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "architecture": "x86_64",
   "qt_version": "6.10.2",
   "libcurl_version": "8.18.0",

@@ -226,14 +226,6 @@ var messages = {
         "Glucoid\nclick",
         "Glucoid\navaa"
     ],
-    "Open Studio": [
-        "Open Studio",
-        "Avaa seuranta"
-    ],
-    "Avaa seuranta": [
-        "Open Studio",
-        "Avaa seuranta"
-    ],
     "Data source": [
         "Data source",
         "Tietolähde"

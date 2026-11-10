@@ -30,7 +30,6 @@ import QtQuick
 import "translations.js" as Language
 import "native" as Network
 import QtQuick.Layouts
-import QtQuick.Controls as Controls
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
@@ -538,16 +537,15 @@ PlasmoidItem {
         // from it. Without a fixed size a fresh applet opens the popup at
         // Plasma's default (560x400) and the card stretches with it.
         width: 196
-        height: 120
+        height: 84
         implicitWidth: width
         implicitHeight: height
         Layout.preferredWidth: 196
-        Layout.preferredHeight: 120
+        Layout.preferredHeight: 84
 
         Rectangle {
             id: card
             anchors.fill: parent
-            anchors.bottomMargin: 36
             // The card is designed for 196x84; scale the typography with the
             // smaller of the two directions so it stays readable at any size
             // a panel or the desktop gives us.
@@ -703,13 +701,5 @@ PlasmoidItem {
 
         }
 
-        Controls.Button {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 30
-            text: root.tr("Avaa seuranta")
-            onClicked: Qt.openUrlExternally("glucoid-studio://today")
-        }
     }
 }
